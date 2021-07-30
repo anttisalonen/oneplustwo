@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html>
+<head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+<style>
+html, body {
+  width:  100%;
+  height: 100%;
+  margin: 0;
+  background-color: black;
+}
+
+#my-canvas {
+    // responsive
+  border: solid 1px blue;
+  height: 80%;
+  // centered
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+
+.restart {
+        width: 40%;
+        margin:auto;
+        display: block;
+}
+
+</style>
+
+<canvas id="my-canvas" width="400" height="500" style="border:1px solid #d3d3d3;">
+Your browser does not support the HTML canvas tag.</canvas>
+<div class="wrapper">
+<button id="restart" class="restart" onclick="restart()">Restart</button>
+</div>
+
+<script>
+var highest;
+
+function restart() {
+        items = [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+        ];
+
+        for(let i = 0; i < 5; i++) {
+                let x = Math.floor(Math.random() * 4);
+                let y = Math.floor(Math.random() * 4);
+                let v = Math.floor(Math.random() * 3) + 1;
+                items[x][y] = v;
+        }
+        highest = 384;
+        if(highest > 3) {
+                items[0][3] = highest;
+        }
+
+        nextblocks = getNextBlock();
+        gameOver = false;
+        document.getElementById("restart").style.display="none";
+        score = 0;
+        drawAll();
+        saveGame();
+}
+
+var items = [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+];
+
+function restartOrLoad() {
+        var data = getCookie("gameData");
+        if(data == "") {
+                restart();
+        } else {
+                try {
+                        var d2 = JSON.parse(data);
+                        items = d2['items'];
+                        highest = d2['highest'];
+                        nextblocks = d2['nextblocks'];
+                        gameOver = d2['gameover'];
+                        score = d2['score'];
+                        if(!gameOver) {
+                                document.getElementById("restart").style.display="none";
+                        }
+                } catch (e) {
+                        restart();
+                }
+        }
+}
+
+restartOrLoad();
+
+var anim_move = {};
+var start;
+var previousTimeStamp;
+
+function isEmpty(obj) {
+    return Object.keys(obj).length === 0;
+}
+
+window.requestAnimationFrame = window.requestAnimationFrame ||
+                               window.mozRequestAnimationFrame ||
+                               window.webkitRequestAnimationFrame ||
+                               window.msRequestAnimationFrame;
+
+function drawAll() {
+        window.requestAnimationFrame(drawAllOnce);
+}
+
+const anim_time_ms = 125.0;
+
+function drawAllOnce(timestamp) {
+        if(isEmpty(anim_move)) {
+                start = undefined;
+        }
+        if(!isEmpty(anim_move) && start === undefined) {
+                start = timestamp;
+        }
+        const elapsed = timestamp - start;
+        var c = document.getElementById("my-canvas");
+        var ctx = c.getContext("2d");
+        ctx.clearRect(0, 0, c.width, c.height);
+        ctx.strokeStyle = "white";
+
+        for(let i = 0; i < 5; i++) {
+                ctx.moveTo(i * 100, 0);
+                ctx.lineTo(i * 100, 400);
+                ctx.stroke();
+                ctx.moveTo(0, i * 100);
+                ctx.lineTo(400, i * 100);
+                ctx.stroke();
+        }
+
+        ctx.font = "24px Arial";
+        ctx.textAlign = "center";
+        for(let j = 0; j < 4; j++) {
+                for(let i = 0; i < 4; i++) {
+                        if(items[i][j] != 0) {
+                                var src = anim_move[[i, j]];
+                                var dx = j * 100;
+                                var dy = i * 100;
+                                if(src) {
+                                        let skew = Math.max(0.0, 1.0 - elapsed / anim_time_ms);
+                                        let diffx = (src[1] - j) * skew;
+                                        let diffy = (src[0] - i) * skew;
+                                        dx = dx + 100 * diffx;
+                                        dy = dy + 100 * diffy;
+                                }
+                                if(items[i][j] == 1) {
+                                        ctx.fillStyle = "#6666ff";
+                                } else if(items[i][j] == 2) {
+                                        ctx.fillStyle = "#ff6666";
+                                } else if(items[i][j] == highest) {
+                                        ctx.fillStyle = "gold";
+                                } else {
+                                        ctx.fillStyle = "white";
+                                }
+                                ctx.fillText(items[i][j], dx + 50, dy + 50);
+                        }
+                }
+        }
+
+        if(!isEmpty(anim_move) && elapsed < anim_time_ms) {
+                window.requestAnimationFrame(drawAllOnce);
+        } else {
+                anim_move = {};
+                start = undefined;
+                ctx.fillStyle = "white";
+                if(gameOver) {
+                        ctx.fillText("Score: " + score, 150, 450);
+                } else {
+                        ctx.fillText("Next card: " + nextblocks, 150, 450);
+                }
+        }
+}
+
+var nextblocks;
+var gameOver;
+var score;
+drawAll();
+window.addEventListener('keydown', this.check, false);
+var c = document.getElementById("my-canvas");
+c.addEventListener('touchstart', touchStart, false);
+c.addEventListener('touchmove', touchMove, false);
+c.addEventListener('touchend', touchEnd, false);
+c.addEventListener('touchcancel', touchCancel, false);
+
+var xDown = null;
+var yDown = null;
+function touchStart(e) {
+        e.preventDefault();
+        xDown = e.touches[0].clientX;
+        yDown = e.touches[0].clientY;
+}
+
+function touchMove(e) {
+        e.preventDefault();
+}
+
+function touchCancel(e) {
+        e.preventDefault();
+        xDown = null;
+        yDown = null;
+}
+
+function touchEnd(e) {
+        e.preventDefault();
+        var c = document.getElementById("my-canvas");
+        var ctx = c.getContext("2d");
+        if(!xDown || !yDown)
+                return;
+        var touch = e.changedTouches[0];
+        var xd = xDown - touch.clientX;
+        var yd = yDown - touch.clientY;
+        if(Math.abs(xd) > Math.abs(yd)) {
+                if(xd < 0) {
+                        moveRight();
+                } else {
+                        moveLeft();
+                }
+        } else {
+                if(yd > 0) {
+                        moveUp();
+                } else {
+                        moveDown();
+                }
+        }
+        xDown = null;
+        yDown = null;
+        checkGameOver();
+        drawAll();
+}
+
+function check(e) {
+        if(gameOver)
+                return;
+        var code = e.keyCode;
+        if (code == 37) {
+                moveLeft();
+                checkGameOver();
+                drawAll();
+        }
+        if (code == 38) {
+                moveUp();
+                checkGameOver();
+                drawAll();
+        }
+        if (code == 39) {
+                moveRight();
+                checkGameOver();
+                drawAll();
+        }
+        if (code == 40) {
+                moveDown();
+                checkGameOver();
+                drawAll();
+        }
+}
+
+function getNextBlock() {
+        if(Math.random() > 0.95 && highest >= 24) {
+                var maxHigh = highest / 4;
+                var minHigh = 6;
+                var opts = [minHigh];
+                for(let i = minHigh * 2; i <= maxHigh / 4; i *= 2) {
+                        opts.push(i);
+                }
+                var selectedMin = choice(opts);
+                var finalOpts = [selectedMin];
+                if(selectedMin * 2 <= maxHigh)
+                        finalOpts.push(selectedMin * 2);
+                if(selectedMin * 4 <= maxHigh)
+                        finalOpts.push(selectedMin * 4);
+                return finalOpts;
+        } else {
+                var ones = getCount(1);
+                var twos = getCount(2);
+                if(ones + 3 > twos)
+                        return [choice([2,3])];
+                else if(twos + 3 > ones)
+                        return [choice([1,3])];
+                else
+                        return [choice([1,2,3])];
+        }
+}
+
+function getCount(num) {
+        var ret = 0;
+        for(let i = 0; i < 4; i++) {
+                for(let j = 0; j < 4; j++) {
+                        if(items[i][j] == num)
+                                ret++;
+                }
+        }
+        return ret;
+}
+
+function choice(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function moveUp() {
+        var combined = new Set();
+        var moved = new Set();
+        var maybe_items = items;
+        for(let j = 0; j < 4; j++) {
+                for(let i = 1; i < 4; i++) {
+                        if(maybe_items[i][j] != 0 && maybe_items[i - 1][j] == 0) {
+                                maybe_items[i - 1][j] = maybe_items[i][j];
+                                maybe_items[i][j] = 0;
+                                anim_move[[i - 1, j]] = [i, j];
+                                moved.add(j);
+                        } else if(maybe_items[i - 1][j] == maybe_items[i][j] && maybe_items[i][j] > 2) {
+                                maybe_items[i - 1][j] *= 2;
+                                highest = Math.max(highest, maybe_items[i - 1][j]);
+                                maybe_items[i][j] = 0;
+                                anim_move[[i - 1, j]] = [i, j];
+                                combined.add(j);
+                        } else if((maybe_items[i - 1][j] == 1 && maybe_items[i][j] == 2) || (maybe_items[i - 1][j] == 2 && maybe_items[i][j] == 1)) {
+                                maybe_items[i - 1][j] = 3;
+                                maybe_items[i][j] = 0;
+                                anim_move[[i - 1, j]] = [i, j];
+                                combined.add(j);
+                        }
+                }
+        }
+        if(combined.size + moved.size > 0) {
+                items = maybe_items;
+                let idx = combined.size == 0 ? choice(Array.from(moved)) : choice(Array.from(combined));
+                items[3][idx] = choice(nextblocks);
+                anim_move[[3, idx]] = [4, idx];
+                nextblocks = getNextBlock();
+        } else {
+                anim_move = {};
+        }
+}
+
+function moveDown() {
+        var combined = new Set();
+        var moved = new Set();
+        var maybe_items = items;
+        for(let j = 0; j < 4; j++) {
+                for(let i = 2; i >= 0; i--) {
+                        if(maybe_items[i][j] != 0 && maybe_items[i + 1][j] == 0) {
+                                maybe_items[i + 1][j] = maybe_items[i][j];
+                                maybe_items[i][j] = 0;
+                                anim_move[[i + 1, j]] = [i, j];
+                                moved.add(j);
+                        } else if(maybe_items[i + 1][j] == maybe_items[i][j] && maybe_items[i][j] > 2) {
+                                maybe_items[i + 1][j] *= 2;
+                                highest = Math.max(highest, maybe_items[i + 1][j]);
+                                maybe_items[i][j] = 0;
+                                anim_move[[i + 1, j]] = [i, j];
+                                combined.add(j);
+                        } else if((maybe_items[i + 1][j] == 1 && maybe_items[i][j] == 2) || (maybe_items[i + 1][j] == 2 && maybe_items[i][j] == 1)) {
+                                maybe_items[i + 1][j] = 3;
+                                maybe_items[i][j] = 0;
+                                anim_move[[i + 1, j]] = [i, j];
+                                combined.add(j);
+                        }
+                }
+        }
+        if(combined.size + moved.size > 0) {
+                items = maybe_items;
+                let idx = combined.size == 0 ? choice(Array.from(moved)) : choice(Array.from(combined));
+                items[0][idx] = choice(nextblocks);
+                anim_move[[0, idx]] = [-1, idx];
+                nextblocks = getNextBlock();
+        } else {
+                anim_move = {};
+        }
+}
+
+function moveLeft() {
+        var combined = new Set();
+        var moved = new Set();
+        var maybe_items = items;
+        for(let i = 0; i < 4; i++) {
+                for(let j = 1; j < 4; j++) {
+                        if(maybe_items[i][j] != 0 && maybe_items[i][j - 1] == 0) {
+                                maybe_items[i][j - 1] = maybe_items[i][j];
+                                maybe_items[i][j] = 0;
+                                anim_move[[i, j - 1]] = [i, j];
+                                moved.add(i);
+                        } else if(maybe_items[i][j - 1] == maybe_items[i][j] && maybe_items[i][j] > 2) {
+                                maybe_items[i][j - 1] *= 2;
+                                highest = Math.max(highest, maybe_items[i][j - 1]);
+                                maybe_items[i][j] = 0;
+                                anim_move[[i, j - 1]] = [i, j];
+                                combined.add(i);
+                        } else if((maybe_items[i][j - 1] == 1 && maybe_items[i][j] == 2) || (maybe_items[i][j - 1] == 2 && maybe_items[i][j] == 1)) {
+                                maybe_items[i][j - 1] = 3;
+                                maybe_items[i][j] = 0;
+                                anim_move[[i, j - 1]] = [i, j];
+                                combined.add(i);
+                        }
+                }
+        }
+        if(combined.size + moved.size > 0) {
+                items = maybe_items;
+                let idx = combined.size == 0 ? choice(Array.from(moved)) : choice(Array.from(combined));
+                items[idx][3] = choice(nextblocks);
+                anim_move[[idx, 3]] = [idx, 4];
+                nextblocks = getNextBlock();
+        } else {
+                anim_move = {};
+        }
+}
+
+function moveRight() {
+        var combined = new Set();
+        var moved = new Set();
+        var maybe_items = items;
+        for(let i = 0; i < 4; i++) {
+                for(let j = 2; j >= 0; j--) {
+                        if(maybe_items[i][j] != 0 && maybe_items[i][j + 1] == 0) {
+                                maybe_items[i][j + 1] = maybe_items[i][j];
+                                maybe_items[i][j] = 0;
+                                anim_move[[i, j + 1]] = [i, j];
+                                moved.add(i);
+                        } else if(maybe_items[i][j + 1] == maybe_items[i][j] && maybe_items[i][j] > 2) {
+                                maybe_items[i][j + 1] *= 2;
+                                highest = Math.max(highest, maybe_items[i][j + 1]);
+                                maybe_items[i][j] = 0;
+                                anim_move[[i, j + 1]] = [i, j];
+                                combined.add(i);
+                        } else if((maybe_items[i][j + 1] == 1 && maybe_items[i][j] == 2) || (maybe_items[i][j + 1] == 2 && maybe_items[i][j] == 1)) {
+                                maybe_items[i][j + 1] = 3;
+                                maybe_items[i][j] = 0;
+                                anim_move[[i, j + 1]] = [i, j];
+                                combined.add(i);
+                        }
+                }
+        }
+        if(combined.size + moved.size > 0) {
+                items = maybe_items;
+                let idx = combined.size == 0 ? choice(Array.from(moved)) : choice(Array.from(combined));
+                items[idx][0] = choice(nextblocks);
+                anim_move[[idx, 0]] = [idx, -1];
+                nextblocks = getNextBlock();
+        } else {
+                anim_move = {};
+        }
+}
+
+function createCookie(name, value, days) {
+    var expires;
+    if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+        expires = "; expires=" + date.toGMTString();
+    }
+    else {
+        expires = "";
+    }
+    document.cookie = name + "=" + value + expires + "; path=/";
+}
+
+function getCookie(c_name) {
+    if (document.cookie.length > 0) {
+        c_start = document.cookie.indexOf(c_name + "=");
+        if (c_start != -1) {
+            c_start = c_start + c_name.length + 1;
+            c_end = document.cookie.indexOf(";", c_start);
+            if (c_end == -1) {
+                c_end = document.cookie.length;
+            }
+            return unescape(document.cookie.substring(c_start, c_end));
+        }
+    }
+    return "";
+}
+
+function saveGame() {
+        var d2 = {
+                items: items,
+                highest: highest,
+                nextblocks: nextblocks,
+                gameover: gameOver,
+                score: score
+        }
+        createCookie("gameData", JSON.stringify(d2), 100000);
+}
+
+function checkGameOver() {
+        if(gameOver)
+                return;
+        saveGame();
+        for(let i = 0; i < 4; i++) {
+                for(let j = 0; j < 4; j++) {
+                        if(items[i][j] == 0)
+                                return;
+                }
+        }
+
+        for(let i = 0; i < 4; i++) {
+                for(let j = 0; j < 4; j++) {
+                        if(i < 3 && items[i][j] == items[i + 1][j] && items[i][j] >= 3)
+                                return;
+                        if(j < 3 && items[i][j] == items[i][j + 1] && items[i][j] >= 3)
+                                return;
+                        if(i < 3 && items[i][j] + items[i + 1][j] == 3)
+                                return;
+                        if(j < 3 && items[i][j] + items[i][j + 1] == 3)
+                                return;
+                }
+        }
+        gameOver = true;
+        calcScore();
+        saveGame();
+        document.getElementById("restart").style.display="block";
+}
+
+function calcScore() {
+        score = 0;
+        for(let i = 0; i < 4; i++) {
+                for(let j = 0; j < 4; j++) {
+                        if(items[i][j] >= 3) {
+                                score += 3 ** (Math.log2(items[i][j] / 3) + 1);
+                        }
+                }
+        }
+}
+
+
+</script>
+
+</body>
+</html>
+
+
